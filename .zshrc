@@ -1,7 +1,8 @@
 source "${HOME}/.git_prompt.sh"
 source "${HOME}/.iterm2_shell_integration.zsh"
 source "${HOME}/.git-aliases"
-source "${HOME}/.custom.yadm"
+
+test -f "${HOME}/.custom.zshrc" && source "${HOME}/.custom.zshrc"
 
 export GIT_PS1_SHOWDIRTYSTATE="true"
 
