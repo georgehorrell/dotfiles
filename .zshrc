@@ -1,14 +1,18 @@
 source "${HOME}/.git_prompt.sh"
 source "${HOME}/.iterm2_shell_integration.zsh"
-source "${HOME}/.git-aliases"
 
+# source custom file if it exists
 test -f "${HOME}/.custom.zshrc" && source "${HOME}/.custom.zshrc"
 
-export GIT_PS1_SHOWDIRTYSTATE="true"
-
+# configure zsh prompt
+export GIT_PS1_SHOWDIRTYSTATE='true'
 setopt PROMPT_SUBST ; PS1='%F{cyan}[%*]%f %F{magenta}%n%f %F{yellow}::%f %F{magenta}%m%f %F{blue}%~%f%F{red}$(__git_ps1 " (%s)")%f %F{yellow}\$%f '
 
-# vi-mode on the
+# source aliases
+source "${HOME}/.aliases/git"
+source "${HOME}/.aliases/misc"
+
+# vi-mode on zsh
 bindkey -v
 
 vi-search-fix() {
@@ -39,11 +43,6 @@ bindkey "^[[B" history-beginning-search-forward-end
 
 # Make Vi mode transitions faster (KEYTIMEOUT is in hundredths of a second)
 export KEYTIMEOUT=1
-
-alias src="source ~/.zshrc"
-alias tmux="TERM=screen-256color-bce tmux"
-alias gw="git worktree"
-alias ls="ls -G"
 
 function ops-today() {
   DATE=$(date +%y%m%d)

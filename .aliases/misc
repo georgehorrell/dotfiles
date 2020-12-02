@@ -1,0 +1,4 @@
+alias src='source ~/.zshrc'
+alias tmux='TERM=screen-256color-bce tmux'
+alias ls='ls -G'
+alias ll='ls -la'
