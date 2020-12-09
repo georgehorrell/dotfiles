@@ -8,6 +8,14 @@ test -f "${HOME}/.custom.zshrc" && source "${HOME}/.custom.zshrc"
 export GIT_PS1_SHOWDIRTYSTATE='true'
 setopt PROMPT_SUBST ; PS1='%F{cyan}[%*]%f %F{magenta}%n%f %F{yellow}::%f %F{magenta}%m%f %F{blue}%~%f%F{red}$(__git_ps1 " (%s)")%f %F{yellow}\$%f '
 
+# configure zsh history
+export HISTFILESIZE=1000000000
+export HISTSIZE=1000000000
+export HISTFILE=~/.zsh_history
+
+setopt HIST_FIND_NO_DUPS
+setopt INC_APPEND_HISTORY
+
 # source aliases
 source "${HOME}/.aliases/git"
 source "${HOME}/.aliases/misc"
@@ -44,9 +52,12 @@ bindkey "^[[B" history-beginning-search-forward-end
 # Make Vi mode transitions faster (KEYTIMEOUT is in hundredths of a second)
 export KEYTIMEOUT=1
 
+# Enable scrolling in less file reader.
+export LESS=-R
+
 function ops-today() {
   DATE=$(date +%y%m%d)
-  mkdir -p ~/ops/$DATE
-  cd ~/ops/$DATE
+  mkdir -p $HOME/ops/$DATE
+  cd $HOME/ops/$DATE
 }
 

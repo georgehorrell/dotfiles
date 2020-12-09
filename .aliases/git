@@ -1,3 +1,4 @@
+# Copied.
 alias g='git'
 alias ga='git add'
 alias gaa='git add --all'
@@ -154,4 +155,8 @@ alias gamc='git am --continue'
 alias gams='git am --skip'
 alias gama='git am --abort'
 alias gamscp='git am --show-current-patch'
+
+# Self-defined.
 alias gw='git worktree'
+alias gdf='git diff --name-only'
+alias gwl='git worktree list'

@@ -1,54 +1,3 @@
-
-
-
-
-
-"       HOW TO DO 90% OF WHAT PLUGINS DO (WITH JUST VIM)
-
-"                          Max Cantor
-
-"               NYC Vim Meetup -- August 3, 2016
-
-
-
-
-
-
-
-
-
-
-
-" FEATURES TO COVER:
-" - Fuzzy File Search
-" - Tag jumping
-" - Autocomplete
-" - File Browsing
-" - Snippets
-" - Build Integration (if we have time)
-
-
-
-
-
-
-
-
-
-
-" GOALS OF THIS TALK:
-" - Increase Vim understanding
-" - Offer powerful options
-
-" NOT GOALS OF THIS TALK:
-" - Hate on plugins
-" - Get people to stop using plugins
-
-
-
-
-
-" {{{ BASIC SETUP
 " BASIC SETUP:
 
 " enter the current millenium
@@ -57,13 +6,6 @@ set nocompatible
 " enable syntax and plugins (for netrw)
 syntax enable
 filetype plugin on
-
-
-
-
-
-
-
 
 
 " FINDING FILES:
@@ -97,9 +39,6 @@ command! MakeTags !ctags -R .
 " - This doesn't help if you want a visual list of tags
 
 
-
-
-
 " AUTOCOMPLETE:
 
 " The good stuff is documented in |ins-completion|
@@ -112,7 +51,6 @@ command! MakeTags !ctags -R .
 
 " NOW WE CAN:
 " - Use ^n and ^p to go back and forth in the suggestion list
-
 
 
 " FILE BROWSING:
@@ -131,7 +69,6 @@ let g:netrw_list_hide.=',\(^\|\s\s\)\zs\.\S\+'
 " - check |netrw-browse-maps| for more mappings
 
 
-
 " SNIPPETS:
 
 " Read an empty HTML template and move cursor to title
@@ -140,13 +77,6 @@ nnoremap ,html :-1read $HOME/.vim/.skeleton.html<CR>3jwf>a
 " NOW WE CAN:
 " - Take over the world!
 "   (with much fewer keystrokes)
-
-
-
-
-
-
-
 
 
 " BUILD INTEGRATION:
@@ -163,20 +93,33 @@ nnoremap ,html :-1read $HOME/.vim/.skeleton.html<CR>3jwf>a
 " - :cc# to jump to error by number
 " - :cn and :cp to navigate forward and back
 
+" github.com/mcantor/no_plugins
 
 
-"                          THANK YOU!
+" STATUS LINE:
+" Stolen from https://shapeshed.com/vim-statuslines/
 
-"                    Download this file at:
-"                github.com/mcantor/no_plugins
+set statusline=
+set statusline+=%#CursorIM#%{(mode()=='n')?'\ \ NORMAL\ ':''}
+set statusline+=%#DiffChange#%{(mode()=='i')?'\ \ INSERT\ ':''}
+set statusline+=%#DiffDelete#%{(mode()=='r')?'\ \ RPLACE\ ':''}
+set statusline+=%#Cursor#%{(mode()=='v')?'\ \ VISUAL\ ':''}
+set statusline+=\ %n\                         " buffer number
+set statusline+=%#Visual#                     " colour
+set statusline+=%{&paste?'\ PASTE\ ':''}
+set statusline+=%{&spell?'\ SPELL\ ':''}
+set statusline+=%#CursorIM#                   " colour
+set statusline+=%R                            " readonly flag
+set statusline+=%M                            " modified [+] flag
+set statusline+=%#Cursor#                     " colour
+set statusline+=%#CursorLine#                 " colour
+set statusline+=\ %t\                         " short file name
+set statusline+=%=                            " right align
+set statusline+=%#CursorLine#                 " colour
+set statusline+=\ %Y\                         " file type
+set statusline+=%#CursorIM#                   " colour
+set statusline+=\ %3l:%-2c\                   " line + column
+set statusline+=%#Cursor#                     " colour
+set statusline+=\ %3p%%\                      " percentage
 
-"                Follow me for kitten pictures:
-"                     twitter.com/mcantor
-
-"          Contact me at `max at maxcantor dot net` for:
-"                  - Consulting (Dev and PM)
-"                          - Tutoring
-"                     - Classroom Teaching
-"                     - Internal Training
-"                       - Encouragement
-
+set laststatus=2
