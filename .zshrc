@@ -49,6 +49,12 @@ zle -N history-beginning-search-forward-end history-search-end
 bindkey "^[[A" history-beginning-search-backward-end
 bindkey "^[[B" history-beginning-search-forward-end
 
+# enable git tab completion
+autoload -Uz compinit && compinit
+
+# ensure menu and select
+zstyle ':completion:*' menu select
+
 # Make Vi mode transitions faster (KEYTIMEOUT is in hundredths of a second)
 export KEYTIMEOUT=1
 
