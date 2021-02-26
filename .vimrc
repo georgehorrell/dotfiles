@@ -123,3 +123,10 @@ set statusline+=%#Cursor#                     " colour
 set statusline+=\ %3p%%\                      " percentage
 
 set laststatus=2
+
+" COLORSCHEME AND DISPLAY:
+" Stolen from https://stackoverflow.com/questions/7278267/incorrect-colors-with-vim-in-iterm2-using-solarized
+set background=dark
+let g:solarized_visibility = "high"
+let g:solarized_contrast = "high"
+colorscheme solarized
