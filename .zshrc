@@ -1,6 +1,5 @@
 source "${HOME}/.git_prompt.sh"
 source "${HOME}/.iterm2_shell_integration.zsh"
-source "${HOME}/.kubectl_integration.zsh"
 source "${HOME}/.z.sh"
 
 # source custom file if it exists
