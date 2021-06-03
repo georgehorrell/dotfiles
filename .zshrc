@@ -1,5 +1,7 @@
 source "${HOME}/.git_prompt.sh"
 source "${HOME}/.iterm2_shell_integration.zsh"
+source "${HOME}/.kubectl_integration.zsh"
+source "${HOME}/.z.sh"
 
 # source custom file if it exists
 test -f "${HOME}/.custom.zshrc" && source "${HOME}/.custom.zshrc"
@@ -54,6 +56,8 @@ autoload -Uz compinit && compinit -i
 
 # ensure menu and select
 zstyle ':completion:*' menu select
+zstyle ':completion:*' completer _expand_alias _complete _ignored
+zstyle ':completion:*' regular true
 
 # Make Vi mode transitions faster (KEYTIMEOUT is in hundredths of a second)
 export KEYTIMEOUT=1
@@ -65,4 +69,14 @@ function ops-today() {
   DATE=$(date +%y%m%d)
   mkdir -p $HOME/ops/$DATE
   cd $HOME/ops/$DATE
+}
+
+# Copy the last command run to clipboard.
+function lc() {
+  history | tail -1 | head -1 | cut -c8-999 | pbcopy
+}
+
+# Copy the file to ~/bin
+function binit() {
+  cp $1 ~/bin/
 }
