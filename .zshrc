@@ -50,7 +50,7 @@ bindkey "^[[A" history-beginning-search-backward-end
 bindkey "^[[B" history-beginning-search-forward-end
 
 # enable git tab completion
-autoload -Uz compinit && compinit
+autoload -Uz compinit && compinit -i
 
 # ensure menu and select
 zstyle ':completion:*' menu select
@@ -66,4 +66,3 @@ function ops-today() {
   mkdir -p $HOME/ops/$DATE
   cd $HOME/ops/$DATE
 }
-

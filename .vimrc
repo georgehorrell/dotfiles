@@ -7,6 +7,11 @@ set nocompatible
 syntax enable
 filetype plugin on
 
+" Enable insert backspace through everything
+set backspace=indent,eol,start
+
+" Enable autoindent
+set autoindent
 
 " FINDING FILES:
 
