@@ -158,5 +158,6 @@ alias gamscp='git am --show-current-patch'
 
 # Self-defined.
 alias gw='git worktree'
-alias gdf='git diff --name-only'
+alias gdf='git diff --name-status'
 alias gwl='git worktree list'
+alias gdn='git diff --name-status'

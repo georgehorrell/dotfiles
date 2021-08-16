@@ -62,7 +62,7 @@ zstyle ':completion:*' regular true
 export KEYTIMEOUT=1
 
 # Enable scrolling in less file reader.
-export LESS=-R
+export LESS=-XFRS
 
 function ops-today() {
   DATE=$(date +%y%m%d)
@@ -78,4 +78,8 @@ function lc() {
 # Copy the file to ~/bin
 function binit() {
   cp $1 ~/bin/
+}
+
+function rgv() {
+  vim -q <(rg --vimgrep $1)
 }
