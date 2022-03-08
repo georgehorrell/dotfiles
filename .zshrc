@@ -18,6 +18,7 @@ export HISTFILE=~/.zsh_history
 
 setopt HIST_FIND_NO_DUPS
 setopt INC_APPEND_HISTORY
+setopt correct
 
 # source aliases
 source "${HOME}/.aliases/git"
