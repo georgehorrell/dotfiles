@@ -2,7 +2,7 @@ source "${HOME}/.git_prompt.sh"
 source "${HOME}/.iterm2_shell_integration.zsh"
 source "${HOME}/.z.sh"
 
-export PATH="${PATH}:${HOME}/bin"
+export PATH="${PATH}:${HOME}/bin:${HOME}/.bin"
 
 # source custom file if it exists
 test -f "${HOME}/.custom.zshrc" && source "${HOME}/.custom.zshrc"
