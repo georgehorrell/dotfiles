@@ -1,0 +1,28 @@
+[user]
+	email = georgewphorrell@gmail.com
+	name = George Horrell
+[core]
+        autocrlf = input
+        editor = vim
+        pager = diff-so-fancy | less --tabs=1,5 -R
+	preloadIndex = true
+[push]
+        default = simple
+[pull]
+        rebase = true
+[diff]
+	algorithm = patience
+	tool = Kaleidoscope
+[difftool "Kaleidoscope"]
+	cmd = ksdiff --partial-changeset --relative-path \"$MERGED\" -- \"$LOCAL\" \"$REMOTE\"
+[mergetool "Kaleidoscope"]
+	cmd = ksdiff --merge --output \"$MERGED\" --base \"$BASE\" -- \"$LOCAL\" --snapshot \"$REMOTE\" --snapshot
+	trustExitCode = true
+[difftool]
+	prompt = false
+[merge]
+	tool = Kaleidoscope
+[mergetool]
+	prompt = false
+[include]
+	path = ~/.custom.gitconfig
