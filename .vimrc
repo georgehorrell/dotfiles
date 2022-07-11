@@ -134,3 +134,6 @@ let g:solarized_visibility = "high"
 let g:solarized_contrast = "high"
 colorscheme solarized
 
+" filetype specific configuration
+"" markdown
+command! OpenBrowser :silent ! open -a "Google Chrome" "file://%:p"

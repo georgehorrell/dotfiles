@@ -86,3 +86,14 @@ function binit() {
 function rgv() {
   vim -q <(rg --vimgrep $1)
 }
+
+function fbr() {
+  BRANCH_NAME="$(git branch --all --sort=-committerdate | fzf)"
+  if [ $? -eq 0 ]; then
+    git checkout "$(echo $BRANCH_NAME | tr -d '[:space:]')"
+  fi
+}
+
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
+[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
