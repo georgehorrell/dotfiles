@@ -1,6 +1,28 @@
 [user]
 	email = georgewphorrell@gmail.com
 	name = George Horrell
+[alias]
+	# *********************
+	# Rebase workflow
+	# *********************
+
+	# print the name of the mainbranch
+	mainbranch = "!git remote show origin | sed -n '/HEAD branch/s/.*: //p'"
+
+	# rebase onto mainbranch
+	mbase = "!git pull origin $(git mainbranch) --rebase"
+
+	# rebase onto remote changes on current branch
+	update = "!git pull origin $(git rev-parse --abbrev-ref HEAD) --rebase"
+
+	# start interactive rebase with base at mainbranch
+	ibase = "!git rebase -v -i $(git mainbranch)"
+
+	# push local changes to remote branch IF last commit was mine
+	publish = push origin HEAD --force-with-lease
+	pub = publish 
+
+	diffp = "!git --no-pager diff"
 [core]
         autocrlf = input
         editor = vim
@@ -8,6 +30,7 @@
 	preloadIndex = true
 [push]
         default = simple
+	autoSetupRemote = true
 [pull]
         rebase = true
 [diff]
@@ -26,3 +49,6 @@
 	prompt = false
 [include]
 	path = ~/.custom.gitconfig
+
+[submodule]
+	recurse = true

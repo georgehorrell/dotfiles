@@ -88,7 +88,14 @@ function rgv() {
 }
 
 function fbr() {
-  BRANCH_NAME="$(git branch --all --sort=-committerdate | fzf)"
+  BRANCH_NAME="$(git branch --sort=-committerdate | fzf --no-sort)"
+  if [ $? -eq 0 ]; then
+    git checkout "$(echo $BRANCH_NAME | tr -d '[:space:]')"
+  fi
+}
+
+function fbra() {
+  BRANCH_NAME="$(git branch --all --sort=-committerdate | fzf --no-sort)"
   if [ $? -eq 0 ]; then
     git checkout "$(echo $BRANCH_NAME | tr -d '[:space:]')"
   fi
