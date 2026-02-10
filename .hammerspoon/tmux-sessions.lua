@@ -41,35 +41,142 @@ local function switchTmuxSession(slot)
     os.execute(tmux .. " has-session -t " .. qs .. " 2>/dev/null || " ..
                tmux .. " new-session -d -s " .. qs)
 
-    -- Check if a client is already attached to this specific session
-    local tty = hs.execute(tmux .. " list-clients -t " .. qs .. " -F '#{client_tty}' 2>/dev/null")
-    tty = tty and tty:match("^%S+")
+    -- Check if this session's window already has an iTerm2 tab (via CC mode)
+    -- Get the tmux window ID for the target
+    local windowIdRaw = hs.execute(tmux .. " display-message -t " .. qt .. " -p '#{window_id}' 2>/dev/null")
+    local windowId = windowIdRaw and windowIdRaw:match("@(%d+)")
 
-    if tty then
-        -- Raise the iTerm window that has this session
-        hs.osascript.applescript(string.format(
-            'tell application "iTerm2"\n' ..
-            '  activate\n' ..
-            '  repeat with w in windows\n' ..
-            '    repeat with t in tabs of w\n' ..
-            '      repeat with s in sessions of t\n' ..
-            '        if tty of s is "%s" then\n' ..
-            '          select t\n' ..
-            '          set index of w to 1\n' ..
-            '          return\n' ..
-            '        end if\n' ..
-            '      end repeat\n' ..
-            '    end repeat\n' ..
-            '  end repeat\n' ..
-            'end tell', tty))
-    else
-        -- No client on this session — open new iTerm window attached to it
-        hs.execute(
-            "osascript -e 'tell application \"iTerm2\" to activate'" ..
-            " -e 'tell application \"iTerm2\" to create window with default profile command \"" ..
-            tmux .. " attach-session -t " .. qt .. "\"'"
-        )
+    if windowId then
+        -- Get the control client TTY for this session (if CC attached)
+        local clientTty = hs.execute(tmux .. " list-clients -t " .. qs .. " -F '#{client_tty}' 2>/dev/null")
+        clientTty = clientTty and clientTty:match("/dev/ttys%d+")
+
+        if clientTty then
+            -- Find the iTerm2 window with the control pane on this TTY
+            -- Then find the matching content window (same [tmux (N)] suffix)
+            local success, result = hs.osascript.applescript(string.format([[
+                tell application "iTerm2"
+                    -- Find the window name pattern for our control pane
+                    set targetPattern to ""
+                    repeat with w in windows
+                        repeat with t in tabs of w
+                            repeat with s in sessions of t
+                                try
+                                    if tty of s is "%s" then
+                                        -- Found control pane, extract [tmux...] pattern from window name
+                                        set winName to name of w
+                                        -- Pattern is like "[↣ tmux tmux (3)]" - we want "tmux (3)" or just "tmux"
+                                        if winName contains "[" then
+                                            set targetPattern to winName
+                                        end if
+                                    end if
+                                end try
+                            end repeat
+                        end repeat
+                    end repeat
+
+                    if targetPattern is "" then
+                        return "no control pane found"
+                    end if
+
+                    -- Now find content window with similar pattern (without the brackets)
+                    -- Control: "[↣ tmux tmux (3)]" -> Content: "↣ zsh [tmux (3)]"
+                    repeat with w in windows
+                        set winName to name of w
+                        -- Content windows have pattern like "↣ ... [tmux (N)]" without leading bracket
+                        if winName does not start with "[" and winName contains "tmux" then
+                            repeat with t in tabs of w
+                                repeat with s in sessions of t
+                                    if tty of s is missing value then
+                                        -- This is a CC content session
+                                        -- Check if the tmux pattern matches
+                                        if targetPattern contains "tmux]" and winName contains "tmux]" then
+                                            activate
+                                            select t
+                                            set index of w to 1
+                                            return "found"
+                                        else if targetPattern contains "tmux (" then
+                                            -- Extract the number
+                                            set tid to text ((offset of "tmux (" in targetPattern) + 6) thru ((offset of ")]" in targetPattern) - 1) of targetPattern
+                                            if winName contains ("tmux (" & tid & ")") then
+                                                activate
+                                                select t
+                                                set index of w to 1
+                                                return "found"
+                                            end if
+                                        end if
+                                    end if
+                                end repeat
+                            end repeat
+                        end if
+                    end repeat
+                    return "no content window: " & targetPattern
+                end tell
+            ]], clientTty))
+
+            if success and result == "found" then
+                return
+            end
+        end
     end
+
+    -- No existing iTerm2 tab for this window — create new CC connection
+    -- Use -d to detach any existing clients
+    hs.execute(
+        "osascript -e 'tell application \"iTerm2\" to activate'" ..
+        " -e 'tell application \"iTerm2\" to create window with default profile command \"" ..
+        tmux .. " -CC attach-session -d -t " .. qt .. "\"'"
+    )
+
+    -- After CC connects, minimize control pane and fullscreen content windows
+    hs.timer.doAfter(0.8, function()
+            hs.osascript.applescript([[
+                tell application "iTerm2"
+                    set contentWindows to {}
+                    set controlWindows to {}
+
+                    repeat with w in windows
+                        set hasTmuxContent to false
+                        set isControlPane to false
+
+                        repeat with t in tabs of w
+                            repeat with s in sessions of t
+                                try
+                                    -- Sessions with tmux integration have a tmux window id
+                                    set twid to tmux window id of s
+                                    if twid is not missing value and twid is not "" then
+                                        set hasTmuxContent to true
+                                    end if
+                                end try
+                                -- Control pane has no tmux window id but runs tmux -CC
+                                if name of s contains "tmux" then
+                                    set isControlPane to true
+                                end if
+                            end repeat
+                        end repeat
+
+                        if hasTmuxContent then
+                            set end of contentWindows to w
+                        else if isControlPane then
+                            set end of controlWindows to w
+                        end if
+                    end repeat
+
+                    -- Minimize control windows
+                    repeat with cw in controlWindows
+                        set miniaturized of cw to true
+                    end repeat
+
+                    -- Fullscreen content windows
+                    repeat with tw in contentWindows
+                        if (zoomed of tw) is false then
+                            set zoomed of tw to true
+                        end if
+                        set index of tw to 1
+                    end repeat
+                end tell
+            ]])
+    end)
 end
 
 local bindings = {}

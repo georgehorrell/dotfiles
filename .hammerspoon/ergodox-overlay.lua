@@ -37,6 +37,34 @@ local KH = 40
 local GAP = 3
 local THUMB_GAP = 10
 
+-- Key position mapping for hyper layer registration
+-- Maps key letter to {side, row, col} in layers[3]
+local keyPositions = {
+    -- Left side
+    ["1"] = {side="left", row=1, col=2}, ["2"] = {side="left", row=1, col=3},
+    ["3"] = {side="left", row=1, col=4}, ["4"] = {side="left", row=1, col=5},
+    ["5"] = {side="left", row=1, col=6},
+    ["q"] = {side="left", row=2, col=2}, ["w"] = {side="left", row=2, col=3},
+    ["e"] = {side="left", row=2, col=4}, ["r"] = {side="left", row=2, col=5},
+    ["t"] = {side="left", row=2, col=6},
+    ["a"] = {side="left", row=3, col=2}, ["s"] = {side="left", row=3, col=3},
+    ["d"] = {side="left", row=3, col=4}, ["f"] = {side="left", row=3, col=5},
+    ["g"] = {side="left", row=3, col=6},
+    ["z"] = {side="left", row=4, col=2}, ["x"] = {side="left", row=4, col=3},
+    ["c"] = {side="left", row=4, col=4}, ["v"] = {side="left", row=4, col=5},
+    ["b"] = {side="left", row=4, col=6},
+    -- Right side
+    ["6"] = {side="right", row=1, col=2}, ["7"] = {side="right", row=1, col=3},
+    ["8"] = {side="right", row=1, col=4}, ["9"] = {side="right", row=1, col=5},
+    ["0"] = {side="right", row=1, col=6},
+    ["y"] = {side="right", row=2, col=2}, ["u"] = {side="right", row=2, col=3},
+    ["i"] = {side="right", row=2, col=4}, ["o"] = {side="right", row=2, col=5},
+    ["p"] = {side="right", row=2, col=6},
+    ["h"] = {side="right", row=3, col=1}, ["j"] = {side="right", row=3, col=2},
+    ["k"] = {side="right", row=3, col=3}, ["l"] = {side="right", row=3, col=4},
+    ["n"] = {side="right", row=4, col=2}, ["m"] = {side="right", row=4, col=3},
+}
+
 local layers = {
     [0] = {
         name = "Default",
@@ -436,5 +464,25 @@ buildAll()
 hs.screen.watcher.new(buildAll):start()
 
 hs.hotkey.bind(hyper, "o", M.toggle)
+
+-- Register a custom key on the Hyper layer and rebuild overlay
+-- key: single letter (e.g., "u", "b")
+-- label: display text (e.g., "umbrel", "safari")
+-- keyType: style type (e.g., "fn", "nav", "spec") - defaults to "fn"
+function M.registerHyperKey(key, label, keyType)
+    keyType = keyType or "fn"
+    local pos = keyPositions[key:lower()]
+    if not pos then return end
+
+    local layer = layers[3]
+    if pos.side == "left" then
+        layer.left[pos.row][pos.col] = {label, keyType}
+    else
+        layer.right[pos.row][pos.col] = {label, keyType}
+    end
+
+    -- Rebuild canvases to reflect the change
+    buildAll()
+end
 
 return M
