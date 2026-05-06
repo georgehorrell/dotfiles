@@ -49,6 +49,21 @@ obj.holdThreshold = 0.18
 --- Default nil (replay always happens).
 obj.onShortClick = nil
 
+--- RadialMenu.onShow
+--- Variable
+--- Optional function called when the radial menu is shown. Useful for
+--- pre-warming work that overlaps with the user's hover-and-pick time
+--- (e.g. opening an audio device). Called with no arguments. Default nil.
+obj.onShow = nil
+
+--- RadialMenu.onHide
+--- Variable
+--- Optional function called when the radial menu hides — for ANY reason,
+--- including action-fired and cancel. Use it to tear down anything that
+--- was set up in `onShow`. Receives one argument: a boolean that is true
+--- if a wedge action was fired, false on cancel. Default nil.
+obj.onHide = nil
+
 --- RadialMenu.dwellTime
 --- Variable
 --- Seconds to hover over a sub-menu wedge before it auto-opens; also the
@@ -530,6 +545,7 @@ local function cancelDwells()
 end
 
 local function toIdle()
+  local wasOpen = (_state == "open")
   if _holdTimer then _holdTimer:stop(); _holdTimer = nil end
   cancelDwells()
   destroyCanvas()
@@ -543,6 +559,11 @@ local function toIdle()
   _center       = nil
   _downEvent    = nil
   _state        = "idle"
+
+  if wasOpen and type(obj.onHide) == "function" then
+    local ok, err = pcall(obj.onHide)
+    if not ok then hs.printf("[RadialMenu] onHide error: %s", tostring(err)) end
+  end
 end
 
 local function replayClick()
@@ -591,6 +612,11 @@ function toOpen()
   refreshCanvas()
   hideCursor()
   if _keyTap then _keyTap:start() end
+
+  if type(obj.onShow) == "function" then
+    local ok, err = pcall(obj.onShow)
+    if not ok then hs.printf("[RadialMenu] onShow error: %s", tostring(err)) end
+  end
 end
 
 function openSubMenu(item, pos)
@@ -919,12 +945,50 @@ function obj:bindToHotkey(mods, key, menuMap)
   if not _tap then self:start() end
 
   if _hotkey then _hotkey:delete(); _hotkey = nil end
+
+  -- Mirror the mouse-button hold semantics so hotkey behavior is
+  -- predictable: press-and-hold opens the menu, but a quick tap (release
+  -- before holdThreshold) skips the open and consults onShortClick. That
+  -- way `hyper+space` while dictation is running stops dictation, the
+  -- same as a short middle-click does.
+  local pressedAt = nil
   _hotkey = hs.hotkey.bind(mods, key,
     function() -- pressed
-      if _state == "idle" then toOpen() end
+      if _state ~= "idle" then return end
+      pressedAt = hs.timer.secondsSinceEpoch()
+      if _holdTimer then _holdTimer:stop() end
+      _holdTimer = hs.timer.doAfter(obj.holdThreshold, function()
+        _holdTimer = nil
+        if _state == "idle" and pressedAt then toOpen() end
+      end)
     end,
     function() -- released
-      if _state == "open" then commitActive() end
+      if _holdTimer then _holdTimer:stop(); _holdTimer = nil end
+      local elapsed = pressedAt and (hs.timer.secondsSinceEpoch() - pressedAt) or 999
+      pressedAt = nil
+
+      if _state == "open" then
+        commitActive()
+        return
+      end
+
+      -- Released before the menu opened. If onShortClick claims the tap,
+      -- consume it; otherwise just open-and-close the menu silently
+      -- (preserves the historic "tap opens momentarily" behavior).
+      if elapsed < obj.holdThreshold then
+        local consumed = false
+        if type(obj.onShortClick) == "function" then
+          local ok, result = pcall(obj.onShortClick)
+          if ok and result then consumed = true end
+          if not ok then
+            hs.printf("[RadialMenu] onShortClick error: %s", tostring(result))
+          end
+        end
+        if not consumed then
+          toOpen()
+          commitActive()  -- immediate silent close
+        end
+      end
     end)
   return self
 end

@@ -1,8 +1,9 @@
 -- dictation.lua
--- Hammerspoon-driven dictation pipeline. Records audio locally via ffmpeg,
--- sends it to a local Parakeet transcription server (stt-hammerspoon-server),
--- streams tokens back to the overlay, and optionally pipes the final
--- transcript through Ollama for stylistic post-processing before pasting.
+-- Hammerspoon-driven dictation pipeline. Streams audio from the local
+-- stt-server's /record endpoint, sends it back to the same server's
+-- /transcribe endpoint, streams tokens into the overlay, and optionally
+-- pipes the final transcript through Ollama for stylistic rewriting
+-- before pasting.
 
 local M = {}
 
@@ -16,115 +17,34 @@ M.ollamaURL         = "http://localhost:11434/api/generate"
 M.ollamaKeepAlive   = "30m"
 M.ollamaNumPredict  = 512
 M.pasteDelay        = 0.15
+M.serverBase        = "http://127.0.0.1:47821"
 M.debug             = true
 
--- Microphone selection persisted across reloads via hs.settings, BY NAME.
--- avfoundation indices are not stable: when an audio device appears or
--- disappears (sleep/wake, USB plug, AirPods connect, etc.), every other
--- device's index shifts. Saving "device 2" silently breaks. Saving "HD
--- Pro Webcam C920" doesn't.
-M.micDeviceName = nil  -- defaults to auto-pick on first launch
+-- Read the auth token written by stt-server on startup. Re-read each
+-- call since the token regenerates on every server launch.
+local function readToken()
+  local f = io.open(os.getenv("HOME") .. "/.local/state/stt-server/auth.token", "r")
+  if not f then return nil end
+  local t = f:read("*l")
+  if f then f:close() end
+  return t and #t > 0 and t or nil
+end
 
 -- ── internal state ───────────────────────────────────────────────────────
 local active           = false
 local activePrompt     = nil
 local prewarmedPrompts = {}  -- set of prompt strings we've already prewarmed
+local startT0          = nil -- secondsSinceEpoch at M.start entry; used to
+                             -- log per-stage latency until first PCM byte
 
 local function log(...)
   if M.debug then hs.printf("[dictation] " .. string.format(...)) end
 end
 
--- ── mic selection ────────────────────────────────────────────────────────
-
-local function loadMicSetting()
-  M.micDeviceName = hs.settings.get("dictation.micDeviceName")
-  -- One-time cleanup: discard any old index-based setting from a previous
-  -- version. Indices aren't stable, so the value is meaningless now; the
-  -- user will get auto-pick until they re-pick via the radial.
-  if hs.settings.get("dictation.micDeviceIndex") ~= nil then
-    log("discarding legacy index-based mic setting; please re-pick via the radial")
-    hs.settings.clear("dictation.micDeviceIndex")
-  end
-end
-
-local function saveMicSetting()
-  hs.settings.set("dictation.micDeviceName", M.micDeviceName)
-end
-
-loadMicSetting()
-
---- Open a chooser to pick the input microphone. Persists the choice by
---- name (not index — indices change when devices come and go).
-function M.pickMicrophone()
-  local devices = audio.listInputs()
-  if #devices == 0 then
-    hs.alert.show("No audio input devices found", 2)
-    return
-  end
-  local choices = {}
-  for _, d in ipairs(devices) do
-    local subText = string.format("avfoundation index %d", d.index)
-    if M.micDeviceName == d.name then
-      subText = subText .. "  ✓ currently selected"
-    end
-    table.insert(choices, {
-      text    = d.name,
-      subText = subText,
-      name    = d.name,
-    })
-  end
-  local picker = hs.chooser.new(function(choice)
-    if choice then
-      M.micDeviceName = choice.name
-      saveMicSetting()
-      hs.alert.show("Microphone: " .. choice.name, 1)
-      log("microphone set to '%s'", choice.name)
-    end
-  end)
-  picker:choices(choices)
-  picker:placeholderText("Select microphone")
-  picker:show()
-end
-
--- Resolve the current avfoundation index for the saved device name. We
--- look it up fresh each call because the index can shift between calls.
-local function currentMicIndex()
-  local devices = audio.listInputs()
-
-  if M.micDeviceName then
-    for _, d in ipairs(devices) do
-      if d.name == M.micDeviceName then
-        log("using mic '%s' at current index %d", d.name, d.index)
-        return d.index
-      end
-    end
-    log("stored mic '%s' not in current device list; falling back to auto-pick",
-        M.micDeviceName)
-  end
-
-  -- Auto-pick: prefer the Mac's built-in microphone if available; never
-  -- the iPhone (continuity camera surface) or webcam mics by default.
-  local function score(name)
-    local n = name:lower()
-    if n:match("iphone") then return -10 end
-    if n:match("webcam") or n:match("c920") then return -5 end
-    if n:match("macbook") or n:match("built%-?in") then return 100 end
-    if n:match("airpod") or n:match("headset") then return 50 end
-    return 0
-  end
-  local best, bestScore
-  for _, d in ipairs(devices) do
-    local s = score(d.name)
-    if best == nil or s > bestScore then
-      best, bestScore = d, s
-    end
-  end
-  if best then
-    log("auto-selected mic: [%d] %s (score=%d)", best.index, best.name, bestScore)
-    return best.index
-  end
-  log("no audio devices found; defaulting to 0")
-  return 0
+local function logStage(label)
+  if not startT0 then return end
+  local ms = (hs.timer.secondsSinceEpoch() - startT0) * 1000
+  hs.printf("[dictation] [+%6.1fms] %s", ms, label)
 end
 
 -- ── paste / typing helpers ──────────────────────────────────────────────
@@ -224,32 +144,34 @@ function M.start(prompt)
 
   active = true
   activePrompt = prompt
+  startT0 = hs.timer.secondsSinceEpoch()
+  logStage("M.start entered")
+
+  -- Show the overlay synchronously, then yield to the event loop so the
+  -- canvas paints before we kick off any HTTP work.
   overlay.start()
+  logStage("overlay.start() returned")
 
-  -- Lazy fallback: if init.lua's eager prewarm hasn't run for this prompt
-  -- (e.g., a new prompt added at runtime), kick it off now. prewarmOllama
-  -- is idempotent so this is safe even if already prewarmed at init.
-  if prompt then M.prewarmOllama(prompt) end
+  hs.timer.doAfter(0, function()
+    if not active then return end
+    logStage("deferred tick fired")
 
-  -- Kick the server check off in the background; we don't actually need
-  -- the server until stop() time, which is at minimum a few seconds away.
-  -- Plenty of time for it to come up in parallel with recording.
-  server.ensureRunning(function(ok, err)
+    if prompt then M.prewarmOllama(prompt) end
+
+    -- audio.start opens a streaming HTTP connection to the server's
+    -- /record endpoint. The server has AUHAL pre-initialized, so the
+    -- first sample arrives within ~80ms.
+    local ok = audio.start()
+    logStage("audio.start() returned")
     if not ok then
-      log("background server check failed: %s", tostring(err))
-      -- Don't cancel recording yet — try again at stop time.
+      log("audio.start failed — is stt-server running?")
+      hs.alert.show("Failed to start microphone (is stt-server up?)", 3)
+      active = false
+      activePrompt = nil
+      startT0 = nil
+      overlay.cancel()
     end
   end)
-
-  -- Start recording immediately. Don't wait on the server.
-  local ok = audio.start(currentMicIndex())
-  if not ok then
-    log("audio.start failed")
-    hs.alert.show("Failed to start microphone", 2)
-    active = false
-    activePrompt = nil
-    overlay.cancel()
-  end
 end
 
 function M.stop()
@@ -260,9 +182,6 @@ function M.stop()
   log("stopping recording")
   overlay.transcribing()
 
-  -- audio.stop is async — ffmpeg has to fully exit and flush its file
-  -- before we can read the bytes. The callback fires from the doneFn
-  -- inside audio.lua.
   local prompt = activePrompt
   activePrompt = nil
 
@@ -273,10 +192,10 @@ function M.stop()
       overlay.cancel()
       return
     end
-    log("captured %d audio bytes; waiting for server", #audioBytes)
+    log("captured %d audio bytes; sending to /transcribe", #audioBytes)
 
-    -- The server may still be loading the model. ensureRunning blocks
-    -- until the server is ready, then transcribes.
+    -- The recording came from the same server we're about to send it
+    -- to, so it's already up — but be defensive in case it crashed.
     server.ensureRunning(function(ok, err)
       if not ok then
         log("server unavailable: %s", tostring(err))
@@ -286,14 +205,13 @@ function M.stop()
         return
       end
 
-      log("server ready; sending audio")
       server.transcribe(audioBytes, {
         on_started = function(_) end,
         on_token   = function(delta) overlay.appendHeard(delta) end,
         on_done    = function(fullText)
           log("transcription done: %d chars", #fullText)
           active = false
-          overlay.heard(fullText)  -- ensure final text is exact
+          overlay.heard(fullText)
           if prompt and #fullText > 0 then
             streamPostProcess(fullText, prompt)
           elseif #fullText > 0 then
@@ -317,13 +235,71 @@ function M.toggle(prompt)
   if active then M.stop() else M.start(prompt) end
 end
 
+--- Open a chooser to pick the input microphone. Driven by the server's
+--- /mics endpoints; the server holds the AudioUnit and the selection.
+function M.pickMicrophone()
+  local token = readToken()
+  if not token then
+    hs.alert.show("STT server not running", 2)
+    return
+  end
+
+  hs.http.asyncGet(M.serverBase .. "/mics?token=" .. token, nil, function(status, body)
+    if status ~= 200 then
+      hs.alert.show("Failed to list mics: HTTP " .. tostring(status), 2)
+      return
+    end
+    local ok, parsed = pcall(hs.json.decode, body)
+    if not ok or type(parsed) ~= "table" or type(parsed.devices) ~= "table" then
+      hs.alert.show("Bad response from /mics", 2)
+      return
+    end
+    if #parsed.devices == 0 then
+      hs.alert.show("No input devices found", 2)
+      return
+    end
+
+    local choices = {}
+    for _, d in ipairs(parsed.devices) do
+      local sub = {}
+      if d.is_current then table.insert(sub, "✓ currently selected") end
+      if d.is_default then table.insert(sub, "system default") end
+      table.insert(sub, "id " .. tostring(d.id))
+      table.insert(choices, {
+        text    = d.name,
+        subText = table.concat(sub, "  ·  "),
+        deviceId = d.id,
+      })
+    end
+
+    local picker = hs.chooser.new(function(choice)
+      if not choice then return end
+      local url = string.format("%s/mics/select?token=%s&id=%d",
+          M.serverBase, token, choice.deviceId)
+      hs.http.asyncPost(url, "", nil, function(s, b)
+        if s == 200 then
+          hs.alert.show("Microphone: " .. choice.text, 1)
+          log("microphone set to '%s' (id=%d)", choice.text, choice.deviceId)
+        else
+          local msg = "Failed to switch mic"
+          local pok, pj = pcall(hs.json.decode, b or "")
+          if pok and type(pj) == "string" then msg = msg .. ": " .. pj end
+          hs.alert.show(msg .. " (HTTP " .. tostring(s) .. ")", 3)
+        end
+      end)
+    end)
+    picker:choices(choices)
+    picker:placeholderText("Select microphone")
+    picker:show()
+  end)
+end
+
 function M.isActive()
   return active
 end
 
 --- Pre-warm Ollama with the given prompt prefix so the first rewrite hits
---- a cached KV state (~1s) instead of cold (~10s). Idempotent: subsequent
---- calls for the same prompt no-op.
+--- a cached KV state (~1s) instead of cold (~10s). Idempotent.
 function M.prewarmOllama(prompt)
   if not prompt or prewarmedPrompts[prompt] then return end
   prewarmedPrompts[prompt] = true
@@ -351,16 +327,7 @@ function M.prewarmServer()
   end)
 end
 
---- Attach the dictation pipeline to a RadialMenu spoon instance:
----
----  * Hooks `onShortClick` so a brief middle-click while recording will
----    stop dictation and proceed (instead of opening the radial).
----  * Pre-warms the STT server (loads Parakeet into VRAM).
----  * Pre-warms Ollama for any prompts in `opts.prewarmPrompts`, so the
----    first stylistic rewrite isn't waiting on a cold model.
----
---- @param radial table  spoon.RadialMenu instance
---- @param opts   table? { prewarmPrompts = { promptString, ... } }
+--- Attach the dictation pipeline to a RadialMenu spoon instance.
 function M.attachToRadial(radial, opts)
   opts = opts or {}
 
@@ -379,23 +346,22 @@ function M.attachToRadial(radial, opts)
 end
 
 -- ── audio recorder callbacks ────────────────────────────────────────────
--- Wired up at the bottom so they capture the locals declared above as
--- proper upvalues (instead of resolving to globals).
+-- Wired at the bottom so they capture the locals above as upvalues.
 
-audio.onLevel = function(level)
-  overlay.pushLevel(level)
+audio.onCaptureStart = function()
+  if not active then return end
+  logStage("first PCM byte (audio.onCaptureStart)")
+  startT0 = nil
+  overlay.listening()
 end
 
--- ffmpeg can die without warning (device busy, permissions revoked mid-
--- session, audio interface unplugged, etc.). When that happens we have to
--- tear down dictation state too — otherwise the radial sees us as still
--- recording and pressing stop hangs the overlay.
 audio.onUnexpectedExit = function(_)
   if not active then return end
   log("recorder exited unexpectedly; aborting dictation")
   hs.alert.show("Microphone unavailable", 2)
   active = false
   activePrompt = nil
+  startT0 = nil
   overlay.cancel()
 end
 
