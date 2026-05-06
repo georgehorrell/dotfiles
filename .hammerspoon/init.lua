@@ -1,6 +1,8 @@
 -- Global Hammerspoon config (tracked by yadm)
 require("tmux-sessions")
 require("ergodox-overlay")
+require("inbox-capture")
+require("radial")
 
 -- Load custom config if present (not tracked by yadm)
 local ok, err = pcall(require, "custom")
