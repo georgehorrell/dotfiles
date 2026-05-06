@@ -1,6 +1,6 @@
 {
   "a": { "session": "personal", "window": "0", "pane": "0" },
-  "s": { "session": "personal-agent", "window": "0", "pane": "0" },
-  "d": { "session": "work", "window": "0", "pane": "0" },
-  "f": { "session": "work-agent", "window": "0", "pane": "0" }
+  "s": { "session": "work1", "window": "0", "pane": "0" },
+  "d": { "session": "work2", "window": "0", "pane": "0" },
+  "f": { "session": "work3", "window": "0", "pane": "0" }
 }

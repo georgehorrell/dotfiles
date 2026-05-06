@@ -9,9 +9,6 @@
 	# print the name of the mainbranch
 	mainbranch = "!git remote show origin | sed -n '/HEAD branch/s/.*: //p'"
 
-	# rebase onto mainbranch
-	mbase = "!git pull origin $(git mainbranch) --rebase"
-
 	# rebase onto remote changes on current branch
 	update = "!git pull origin $(git rev-parse --abbrev-ref HEAD) --rebase"
 
@@ -23,16 +20,26 @@
 	pub = publish 
 
 	diffp = "!git --no-pager diff"
+
+	# ignore changes
+	ignore = update-index --assume-unchanged
+	# unignore changes
+	unignore = update-index --no-assume-unchanged
+	# see which changes have already been ignored
+	ignored = !git ls-files -v | grep "^[[:lower:]]"
 [core]
         autocrlf = input
         editor = vim
         pager = diff-so-fancy | less --tabs=1,5 -R
 	preloadIndex = true
+	commentchar = ";"
+	compression = 0
+	excludesfile = /Users/georgehorrell/.gitignore_global
 [push]
         default = simple
 	autoSetupRemote = true
 [pull]
-        rebase = true
+	rebase = true
 [diff]
 	algorithm = patience
 	tool = Kaleidoscope
@@ -52,3 +59,12 @@
 
 [submodule]
 	recurse = true
+[credential]
+	helper = osxkeychain
+[rerere]
+	enabled = true
+[filter "lfs"]
+	smudge = git-lfs smudge -- %f
+	process = git-lfs filter-process
+	required = true
+	clean = git-lfs clean -- %f

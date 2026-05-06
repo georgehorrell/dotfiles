@@ -152,7 +152,7 @@ local layers = {
         left = {
             { {"\u{00B7}","empty"},{"\u{00B7}","empty"},{"\u{00B7}","empty"},{"\u{00B7}","empty"},{"\u{00B7}","empty"},{"\u{00B7}","empty"},{"","empty"} },
             { {"\u{00B7}","empty"},{"\u{00B7}","empty"},{"\u{00B7}","empty"},{"\u{00B7}","empty"},{"reload","fn"},{"\u{00B7}","empty"},{"","empty"} },
-            { {"\u{00B7}","empty"},{"persnl","fn"},{"p-agnt","fn"},{"work","fn"},{"w-agnt","fn"},{"\u{00B7}","empty"} },
+            { {"\u{00B7}","empty"},{"\u{00B7}","empty"},{"\u{00B7}","empty"},{"\u{00B7}","empty"},{"\u{00B7}","empty"},{"\u{00B7}","empty"} },
             { {"\u{00B7}","empty"},{"\u{00B7}","empty"},{"\u{00B7}","empty"},{"\u{00B7}","empty"},{"\u{00B7}","empty"},{"\u{00B7}","empty"},{"","empty"} },
             { {"\u{00B7}","empty"},{"\u{00B7}","empty"},{"\u{00B7}","empty"},{"\u{00B7}","empty"},{"\u{00B7}","empty"} },
         },
@@ -395,10 +395,37 @@ local function buildCanvas(layerIdx)
     return c
 end
 
+-- Load tmux slot labels from config file
+local function loadTmuxSlotLabels()
+    local configPath = os.getenv("HOME") .. "/.tmux-slots.json"
+    local f = io.open(configPath, "r")
+    if not f then return end
+    local content = f:read("*a")
+    f:close()
+    local ok, config = pcall(hs.json.decode, content)
+    if not ok or not config then return end
+
+    local layer = layers[3]
+    for key, slot in pairs(config) do
+        local pos = keyPositions[key:lower()]
+        if pos and slot.session then
+            -- Truncate session name to fit key (max 6 chars)
+            local label = slot.session:sub(1, 6)
+            if pos.side == "left" then
+                layer.left[pos.row][pos.col] = {label, "fn"}
+            else
+                layer.right[pos.row][pos.col] = {label, "fn"}
+            end
+        end
+    end
+end
+
 -- Pre-build all 4 layer canvases at load time
 local function buildAll()
     for _, c in pairs(canvases) do c:delete() end
     canvases = {}
+    -- Load tmux slot labels before building
+    loadTmuxSlotLabels()
     for i = 0, 3 do
         canvases[i] = buildCanvas(i)
     end

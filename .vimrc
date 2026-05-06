@@ -137,3 +137,40 @@ colorscheme solarized
 " filetype specific configuration
 "" markdown
 command! OpenBrowser :silent ! open -a "Google Chrome" "file://%:p"
+
+" for MacVim, set the GUI font
+set gfn=SourceCodeProRoman-Regular:h14
+
+function! FormatCurl()
+  let l:line = getline('.')
+
+  " Extract and format JSON payload from single-quoted -d argument
+  if l:line =~# '\v(-d|--data|--data-raw)[= ]''\{.*}'''
+    let l:json_raw = matchstr(l:line, '\v(-d|--data|--data-raw)[= ]''\zs{.*}\ze''')
+    let l:pretty_json = system('jq .', l:json_raw)
+
+    " Escape internal single quotes if any (JSON typically doesn't use them)
+    let l:pretty_json = substitute(l:pretty_json, '''', '''\\''''', 'g')
+    let l:pretty_json_lines = split(l:pretty_json, '\n')
+
+    " Add \n between lines for literal shell string, re-wrap in single quotes
+    let l:json_final = "'". join(map(l:pretty_json_lines, {idx, val -> (idx == 0 ? val : "\\n" . val)}), '') . "'"
+
+    " Replace original JSON string in the line
+    let l:line = substitute(l:line, '\v(-d|--data|--data-raw)[= ]''{.*}''', '\1 ' . l:json_final, '')
+  endif
+
+  " Split options so each begins on a new line, with 2-space indent and \
+  let l:parts = split(l:line, '\s\+\zs-(?=-|[A-Za-z])')
+  for i in range(len(l:parts))
+    if i == 0
+      let l:parts[i] = l:parts[i]
+    else
+      let l:parts[i] = '  \\' . "\r  -" . l:parts[i]
+    endif
+  endfor
+
+  call setline('.', join(l:parts, ' '))
+endfunction
+
+command! FormatCurl call FormatCurl()

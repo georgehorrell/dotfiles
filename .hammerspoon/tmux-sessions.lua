@@ -37,9 +37,11 @@ local function switchTmuxSession(slot)
     local qs = shellquote(session)
     local qt = shellquote(target)
 
-    -- Ensure session exists
+    -- Ensure session exists (with optional start directory)
+    local startDir = slot.startDir or os.getenv("HOME")
+    local qd = shellquote(startDir)
     os.execute(tmux .. " has-session -t " .. qs .. " 2>/dev/null || " ..
-               tmux .. " new-session -d -s " .. qs)
+               tmux .. " new-session -d -s " .. qs .. " -c " .. qd)
 
     -- Check if this session's window already has an iTerm2 tab (via CC mode)
     -- Get the tmux window ID for the target
@@ -190,6 +192,21 @@ local function dismissOverlay()
     if overlayTimer then overlayTimer:stop(); overlayTimer = nil end
 end
 
+local function getClaudeStatus(tmuxPane)
+    -- Check for Claude Code status file for this pane
+    local statusDir = os.getenv("HOME") .. "/.claude-status"
+    local statusFile = statusDir .. "/" .. tmuxPane:gsub("[:%.]", "-") .. ".json"
+    local f = io.open(statusFile, "r")
+    if not f then return nil end
+    local content = f:read("*a")
+    f:close()
+    local ok, status = pcall(hs.json.decode, content)
+    if ok and status then
+        return status
+    end
+    return nil
+end
+
 local function getPaneInfo(slot)
     local target = slot.session
     if slot.window then target = target .. ":" .. slot.window end
@@ -209,7 +226,11 @@ local function getPaneInfo(slot)
     if home and path:sub(1, #home) == home then
         path = "~" .. path:sub(#home + 1)
     end
-    return { cmd = cmd, path = path }
+
+    -- Check for Claude Code status
+    local claudeStatus = getClaudeStatus(target)
+
+    return { cmd = cmd, path = path, claude = claudeStatus }
 end
 
 local function showOverlay()
@@ -238,6 +259,7 @@ local function showOverlay()
                 session = slot.session,
                 cmd = info.cmd,
                 path = info.path,
+                claude = info.claude,
             })
         else
             table.insert(lines, {
@@ -245,6 +267,7 @@ local function showOverlay()
                 session = slot.session,
                 cmd = "not running",
                 path = "",
+                claude = nil,
             })
         end
     end
@@ -288,12 +311,19 @@ local function showOverlay()
         local alpha = dimmed and 0.4 or 0.9
 
         -- Key badge
+        local badgeBg = { red = 0.3, green = 0.3, blue = 0.35, alpha = alpha }
+        -- If Claude is waiting, highlight the badge
+        if line.claude and line.claude.waiting then
+            badgeBg = { red = 0.8, green = 0.5, blue = 0.1, alpha = 0.9 }
+        elseif line.claude then
+            badgeBg = { red = 0.2, green = 0.5, blue = 0.3, alpha = 0.9 }
+        end
         overlay:appendElements({
             type = "rectangle",
             action = "fill",
             frame = { x = padding, y = rowY + 6, w = 32, h = 28 },
             roundedRectRadii = { xRadius = 6, yRadius = 6 },
-            fillColor = { red = 0.3, green = 0.3, blue = 0.35, alpha = alpha },
+            fillColor = badgeBg,
         })
         overlay:appendElements({
             type = "text",
@@ -305,8 +335,15 @@ local function showOverlay()
             frame = { x = padding, y = rowY + 9, w = 32, h = 22 },
         })
 
-        -- Session name + command
+        -- Session name + command (with Claude indicator)
         local detail = line.session .. "  ·  " .. line.cmd
+        if line.claude then
+            if line.claude.waiting then
+                detail = detail .. "  [WAITING]"
+            else
+                detail = detail .. "  [claude]"
+            end
+        end
         overlay:appendElements({
             type = "text",
             text = hs.styledtext.new(detail, {
@@ -316,11 +353,19 @@ local function showOverlay()
             frame = { x = padding + 44, y = rowY + 4, w = width - padding * 2 - 44, h = 20 },
         })
 
-        -- Path
-        if line.path ~= "" then
+        -- Path (use Claude cwd if available, otherwise tmux path)
+        local displayPath = line.path
+        if line.claude and line.claude.cwd then
+            local home = os.getenv("HOME")
+            displayPath = line.claude.cwd
+            if home and displayPath:sub(1, #home) == home then
+                displayPath = "~" .. displayPath:sub(#home + 1)
+            end
+        end
+        if displayPath ~= "" then
             overlay:appendElements({
                 type = "text",
-                text = hs.styledtext.new(line.path, {
+                text = hs.styledtext.new(displayPath, {
                     font = { name = "Menlo", size = 11 },
                     color = { red = 0.6, green = 0.6, blue = 0.65, alpha = alpha },
                 }),
