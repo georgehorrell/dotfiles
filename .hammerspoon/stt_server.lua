@@ -27,9 +27,13 @@ M.binary     = nil   -- resolved at first use
 M.tokenFile  = os.getenv("HOME") .. "/.local/state/stt-server/auth.token"
 M.debug      = true
 
-local launched     = nil   -- hs.task we spawned (may be nil if we attached to an existing one)
+local launched     = nil   -- hs.task we spawned (nil means no live task: not yet started, or exited)
 local cachedToken  = nil
-local hasSpawned   = false -- have we kicked off a spawn this session?
+-- Coalesce concurrent ensureRunning callers so a slow spawn is only ever
+-- launched once. While `polling = true`, additional callers append their
+-- callbacks to `pending` instead of triggering a fresh spawn.
+local polling      = false
+local pending      = {}
 
 local function log(...)
   if M.debug then hs.printf("[stt-server] " .. string.format(...)) end
@@ -100,13 +104,20 @@ end
 local function waitForHealth(callback, attempts)
   attempts = attempts or 0
   if attempts > 240 then  -- 240 * 0.25s = 60s
+    log("waitForHealth: gave up after 60s")
     callback(false, "server did not become healthy within 60s")
     return
   end
   healthCheck(function(ok)
     if ok then
+      log("waitForHealth: /health 200 after %d attempts (~%.1fs)",
+          attempts, attempts * 0.25)
       callback(true)
     else
+      -- Log occasionally so a stalled spawn is visible without spamming.
+      if attempts % 20 == 0 then
+        log("waitForHealth: still waiting (attempt %d)", attempts)
+      end
       hs.timer.doAfter(0.25, function() waitForHealth(callback, attempts + 1) end)
     end
   end)
@@ -118,27 +129,53 @@ end
 --- don't try to launch a second binary when the first one is just slow to
 --- come up — but we don't try to coalesce concurrent callers, because a
 --- broken queue is far worse than a few duplicate health pings.
+local function fireAndClear(ok, err)
+  local cbs = pending
+  pending = {}
+  polling = false
+  for _, cb in ipairs(cbs) do
+    local okPcall, errPcall = pcall(cb, ok, err)
+    if not okPcall then log("ensureRunning callback raised: %s", tostring(errPcall)) end
+  end
+end
+
 function M.ensureRunning(callback)
   callback = callback or function() end
 
   healthCheck(function(ok)
     if ok then
+      log("ensureRunning: /health 200 (server already up)")
       callback(true)
       return
     end
 
-    -- Server isn't responding. Spawn the binary if we haven't already.
-    if not hasSpawned then
+    -- Server isn't responding. Coalesce concurrent callers — at most
+    -- one spawn + one waitForHealth at a time. This avoids the
+    -- catastrophic race where M.prewarmServer() (run at HS load) and
+    -- the user's first M.start() each kick off a spawn: the second
+    -- spawn dies on EADDRINUSE *after* overwriting the auth token,
+    -- bricking the live server's auth.
+    table.insert(pending, callback)
+    if polling then
+      log("ensureRunning: piggybacking on in-flight poll (%d queued)", #pending)
+      return
+    end
+    polling = true
+
+    if launched then
+      -- A previously-spawned task is still alive (its completion
+      -- callback would have nil'd `launched` if it had exited). It's
+      -- just slow to bind — wait for it.
+      log("ensureRunning: spawn in flight; waiting for /health")
+    else
+      log("ensureRunning: no live server task; spawning")
       if not spawn() then
-        callback(false, "no server binary found")
+        fireAndClear(false, "no server binary found")
         return
       end
-      hasSpawned = true
     end
 
-    -- Poll until it comes up. Multiple concurrent callers polling is fine —
-    -- /health is cheap and idempotent.
-    waitForHealth(callback)
+    waitForHealth(function(ok2, err2) fireAndClear(ok2, err2) end)
   end)
 end
 

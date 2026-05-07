@@ -178,7 +178,10 @@ function M.start(prompt)
     if prompt then M.prewarmOllama(prompt) end
 
     -- Be defensive: server may have died since we last touched it.
+    logStage("calling ensureRunning")
     server.ensureRunning(function(ok, err)
+      logStage(string.format("ensureRunning callback ok=%s err=%s",
+                             tostring(ok), tostring(err)))
       if not ok then
         log("server unavailable: %s", tostring(err))
         if active then
@@ -191,7 +194,10 @@ function M.start(prompt)
         return
       end
 
-      if not active then return end  -- user stopped during ensureRunning
+      if not active then
+        log("dropped start: user stopped during ensureRunning")
+        return
+      end
 
       liveHandle = dictate.start({
         on_ready = function(_id)
@@ -301,8 +307,21 @@ function M.stop()
     return
   end
   log("stopping dictation")
-  overlay.transcribing()
-  if liveHandle then liveHandle:stop() end
+  if liveHandle then
+    overlay.transcribing()
+    liveHandle:stop()
+  else
+    -- Stop pressed during the start-up race (server still spawning, or
+    -- ensureRunning's callback hasn't fired yet, or we crashed
+    -- somewhere in between). Don't leave `active = true` forever — the
+    -- next M.start would be ignored and the user would be stuck. Tear
+    -- down the in-flight start so the next press can begin fresh.
+    log("stop before ws ready — abandoning pending start")
+    active = false
+    activePrompt = nil
+    startT0 = nil
+    overlay.cancel()
+  end
 end
 
 function M.toggle(prompt)

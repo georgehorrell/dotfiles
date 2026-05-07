@@ -154,6 +154,155 @@ obj.cursorRadius = 7
 --- Fill color for the rubber-band cursor disc. RGBA table.
 obj.cursorColor = { red = 1.00, green = 1.00, blue = 1.00, alpha = 0.95 }
 
+--- RadialMenu.style
+--- Variable
+--- Visual style. `"classic"` is the default dark-wedge look; `"flower"` is a
+--- bright scalloped style modeled on Pokémon Scarlet/Violet's action wheel:
+--- a single white flower-shaped silhouette, per-wedge icons, a sky-blue
+--- floating label pill above the active wedge, and a grey center hub with
+--- a key-binding hint. Hit-testing is identical for both styles.
+obj.style = "classic"
+
+--- RadialMenu.petalAmplitude
+--- Variable
+--- (flower style only) How far the flower's lobes bulge outward beyond the
+--- base radius, in points. Larger = more pronounced scalloping. Default 14.
+obj.petalAmplitude = 14
+
+--- RadialMenu.bgColor
+--- Variable
+--- (flower style only) Fill color of the flower silhouette.
+obj.bgColor = { red = 1.00, green = 1.00, blue = 1.00, alpha = 0.96 }
+
+--- RadialMenu.bgStrokeColor
+--- Variable
+--- (flower style only) Outline color around the flower silhouette.
+obj.bgStrokeColor = { red = 0.00, green = 0.00, blue = 0.00, alpha = 0.06 }
+
+--- RadialMenu.placeholderColor
+--- Variable
+--- (flower style only) Color of the "+" glyph drawn in wedges that don't
+--- carry an `icon`.
+obj.placeholderColor = { red = 0.78, green = 0.78, blue = 0.80, alpha = 0.95 }
+
+--- RadialMenu.activeRingColor
+--- Variable
+--- (flower style only) Stroke color of the highlight ring drawn around the
+--- active wedge's icon.
+obj.activeRingColor = { red = 0.30, green = 0.62, blue = 0.95, alpha = 0.95 }
+
+--- RadialMenu.labelPillColor
+--- Variable
+--- (flower style only) Fill color of the floating label pill that shows the
+--- active wedge's name above the menu.
+obj.labelPillColor = { red = 0.30, green = 0.62, blue = 0.95, alpha = 1.00 }
+
+--- RadialMenu.labelPillTextColor
+--- Variable
+--- (flower style only) Text color inside the floating label pill.
+obj.labelPillTextColor = { red = 1.00, green = 1.00, blue = 1.00, alpha = 1.00 }
+
+--- RadialMenu.centerHubColor
+--- Variable
+--- (flower style only) Fill color of the outer ring of the center hub.
+obj.centerHubColor = { red = 0.66, green = 0.66, blue = 0.68, alpha = 0.95 }
+
+--- RadialMenu.centerHubInnerColor
+--- Variable
+--- (flower style only) Fill color of the inner disc of the center hub.
+obj.centerHubInnerColor = { red = 0.88, green = 0.88, blue = 0.90, alpha = 1.00 }
+
+--- RadialMenu.centerHubText
+--- Variable
+--- (flower style only) Single character/glyph drawn in the center hub —
+--- e.g. the trigger key. Default "L". When in a sub-menu the renderer
+--- automatically substitutes "←".
+obj.centerHubText = "L"
+
+--- RadialMenu.centerHubTextColor
+--- Variable
+--- (flower style only) Color of the text inside the center hub.
+obj.centerHubTextColor = { red = 0.20, green = 0.20, blue = 0.22, alpha = 1.00 }
+
+--- RadialMenu.iconSize
+--- Variable
+--- (flower style only) Point size of the per-wedge icon glyphs. Default 26.
+obj.iconSize = 26
+
+--- RadialMenu.theme
+--- Variable
+--- Name of the currently applied theme (see `RadialMenu.themes`). Read-only;
+--- use `:setTheme(name)` to change it. Default "vampire".
+obj.theme = "vampire"
+
+--- RadialMenu.themes
+--- Variable
+--- Table of named themes. Each value is a partial table of property
+--- overrides applied on top of the current configuration when
+--- `:setTheme(name)` is called. Two themes ship by default:
+---  * "vampire" — the original dark-wedge look.
+---  * "pokemon" — a bright scalloped flower-shaped wheel modeled on the
+---    Pokémon Scarlet/Violet action wheel.
+--- You can register additional themes by assigning to this table before
+--- calling `:setTheme(...)`.
+obj.themes = {
+  vampire = {
+    style              = "classic",
+    radius             = 170,
+    deadZoneRadius     = 42,
+    wedgeColor         = { red = 0.10, green = 0.10, blue = 0.12, alpha = 0.86 },
+    activeWedgeColor   = { red = 0.00, green = 0.48, blue = 1.00, alpha = 0.95 },
+    subMenuWedgeColor  = { red = 0.13, green = 0.18, blue = 0.16, alpha = 0.88 },
+    deadZoneColor      = { red = 1.00, green = 1.00, blue = 1.00, alpha = 0.18 },
+    rimColor           = { red = 1.00, green = 1.00, blue = 1.00, alpha = 0.10 },
+    labelColor         = { red = 0.96, green = 0.96, blue = 0.98, alpha = 1.00 },
+    activeLabelColor   = { red = 1.00, green = 1.00, blue = 1.00, alpha = 1.00 },
+    cursorColor        = { red = 1.00, green = 1.00, blue = 1.00, alpha = 0.95 },
+  },
+  pokemon = {
+    style              = "flower",
+    radius             = 175,
+    deadZoneRadius     = 52,
+    petalAmplitude     = 14,
+    bgColor            = { red = 1.00, green = 1.00, blue = 1.00, alpha = 0.97 },
+    bgStrokeColor      = { red = 0.00, green = 0.00, blue = 0.00, alpha = 0.06 },
+    placeholderColor   = { red = 0.78, green = 0.78, blue = 0.80, alpha = 0.95 },
+    activeRingColor    = { red = 0.30, green = 0.62, blue = 0.95, alpha = 0.95 },
+    labelPillColor     = { red = 0.30, green = 0.62, blue = 0.95, alpha = 1.00 },
+    labelPillTextColor = { red = 1.00, green = 1.00, blue = 1.00, alpha = 1.00 },
+    centerHubColor     = { red = 0.62, green = 0.62, blue = 0.66, alpha = 0.95 },
+    centerHubInnerColor= { red = 0.88, green = 0.88, blue = 0.90, alpha = 1.00 },
+    centerHubText      = "L",
+    centerHubTextColor = { red = 0.20, green = 0.20, blue = 0.22, alpha = 1.00 },
+    cursorColor        = { red = 0.30, green = 0.62, blue = 0.95, alpha = 0.85 },
+    iconSize           = 26,
+  },
+}
+
+--- RadialMenu:setTheme(name)
+--- Method
+--- Apply a theme by name from `RadialMenu.themes`, overwriting any
+--- properties the theme defines. Safe to call before or after `:start()`.
+--- If the menu is currently open, the next render uses the new theme; the
+--- caller may also call `:redraw()` (not exposed today) or simply close and
+--- reopen the menu to see the change immediately.
+---
+--- Parameters:
+---  * name — string, key into `RadialMenu.themes`
+---
+--- Returns:
+---  * The RadialMenu object
+function obj:setTheme(name)
+  local t = self.themes[name]
+  if not t then
+    hs.printf("[RadialMenu] unknown theme: %s", tostring(name))
+    return self
+  end
+  self.theme = name
+  for k, v in pairs(t) do self[k] = v end
+  return self
+end
+
 --- RadialMenu.debug
 --- Variable
 --- Set to `true` to print every event the open-state handler sees, plus the
@@ -182,6 +331,10 @@ local _cursorDy       = 0
 local _wedgeIdxs      = {}      -- _wedgeIdxs[i] = canvas index of wedge i
 local _backIdx        = nil     -- canvas index of the back-hitbox fill
 local _cursorIdx      = nil     -- canvas index of the rubber-band cursor disc
+-- Flower-style only:
+local _flowerRingIdxs   = {}    -- ring element indices (per wedge)
+local _flowerPillBgIdx  = nil   -- floating label-pill background
+local _flowerPillTxtIdx = nil   -- floating label-pill text
 local _canvasLx       = 0       -- canvas-local center x (= radius + pad)
 local _canvasLy       = 0       -- canvas-local center y
 local _currentItems   = {}
@@ -264,6 +417,22 @@ local function wedgePolygon(lx, ly, outerR, innerR, startDeg, endDeg)
   return pts
 end
 
+-- Build a closed flower-shaped polygon (cosine-modulated radius) with `lobes`
+-- bumps. `phaseDeg` controls where the first bump peaks; we set it so the
+-- peaks line up with wedge midpoints. lx/ly are canvas-local center.
+local function flowerPolygon(lx, ly, baseR, amp, lobes, phaseDeg)
+  if lobes < 1 then lobes = 1 end
+  local steps = math.max(180, lobes * 32)
+  local pts = {}
+  local phase = math.rad(phaseDeg or 270)
+  for k = 0, steps do
+    local theta = math.rad(360 * k / steps)
+    local r = baseR + amp * math.cos(lobes * (theta - phase))
+    pts[#pts + 1] = { x = lx + r * math.cos(theta), y = ly + r * math.sin(theta) }
+  end
+  return pts
+end
+
 -- ───────────────────────────────────────────────────────────────────────────
 -- Canvas rendering
 -- ───────────────────────────────────────────────────────────────────────────
@@ -273,6 +442,196 @@ local function destroyCanvas()
     _canvas:delete()
     _canvas = nil
   end
+end
+
+-- Build the flower-shaped (Pokémon-inspired) canvas. Hit-testing is the same
+-- as classic mode (wedge angles unchanged); only the visual differs.
+local function renderFlower(items, n)
+  local R   = obj.radius
+  local DZ  = obj.deadZoneRadius
+  local amp = obj.petalAmplitude or 14
+  -- Extra padding to fit the bulging petals + the floating label pill above.
+  local pad     = 28
+  local pillH   = 28
+  local pillTop = pad - pillH - 6  -- pill sits above the flower
+  if pillTop < 4 then pillTop = 4 end
+  local sz  = (R + amp + pad) * 2
+  local lx  = R + amp + pad
+  local ly  = R + amp + pad + pillH * 0  -- center vertically; pill drawn above
+  _canvasLx, _canvasLy = lx, ly
+
+  -- Push everything down so the pill has room above.
+  ly = ly + (pillH + 6) / 2
+  _canvasLy = ly
+  -- Resize canvas height to include pill area
+  local extraTop = pillH + 6
+  local cy = _center.y - R - amp - pad - extraTop / 2
+  local c = hs.canvas.new({
+    x = _center.x - lx,
+    y = cy,
+    w = sz,
+    h = sz + extraTop,
+  })
+  c:level(hs.canvas.windowLevels.overlay)
+  c:behavior(hs.canvas.windowBehaviors.canJoinAllSpaces)
+  c:canvasMouseEvents(false, false, false, false)
+
+  -- Soft drop shadow: a single enlarged flower polygon with low alpha.
+  for i = 3, 1, -1 do
+    local extra = i * 4
+    c:appendElements({
+      type        = "segments",
+      action      = "fill",
+      closed      = true,
+      coordinates = flowerPolygon(lx, ly + extra * 0.3, R + extra, amp, n, 270),
+      fillColor   = { red = 0, green = 0, blue = 0, alpha = 0.05 + (4 - i) * 0.03 },
+    })
+  end
+
+  -- Main flower silhouette
+  c:appendElements({
+    type        = "segments",
+    action      = "fill",
+    closed      = true,
+    coordinates = flowerPolygon(lx, ly, R, amp, n, 270),
+    fillColor   = obj.bgColor,
+  })
+  c:appendElements({
+    type        = "segments",
+    action      = "stroke",
+    closed      = true,
+    coordinates = flowerPolygon(lx, ly, R, amp, n, 270),
+    strokeColor = obj.bgStrokeColor,
+    strokeWidth = 1,
+  })
+
+  -- Per-wedge icons + active rings. Place each icon at the radial center
+  -- of its wedge (between the dead-zone and the petal peak).
+  _flowerRingIdxs = {}
+  local iconR     = (DZ + R + amp) / 2 - 4
+  local iconBgR   = math.min(38, (R - DZ) * 0.36)
+  for i = 1, n do
+    local _, _, mid = wedgeAngles(i, n)
+    local a  = math.rad(mid)
+    local ix = lx + iconR * math.cos(a)
+    local iy = ly + iconR * math.sin(a)
+    local item = items[i]
+
+    if item.icon then
+      -- Filled icon disc with a soft tinted background (or transparent).
+      if item.iconColor then
+        c:appendElements({
+          type      = "oval",
+          action    = "fill",
+          fillColor = item.iconColor,
+          frame     = { x = ix - iconBgR, y = iy - iconBgR,
+                        w = iconBgR * 2,  h = iconBgR * 2 },
+        })
+      end
+      c:appendElements({
+        type  = "text",
+        text  = hs.styledtext.new(item.icon, {
+          font           = { name = obj.labelFont, size = obj.iconSize },
+          color          = { red = 1, green = 1, blue = 1, alpha = 1 },
+          paragraphStyle = { alignment = "center" },
+        }),
+        frame = { x = ix - iconBgR, y = iy - obj.iconSize / 2 - 4,
+                  w = iconBgR * 2,  h = obj.iconSize + 8 },
+      })
+    else
+      -- "+" placeholder (matches the Pokémon empty-slot look)
+      c:appendElements({
+        type  = "text",
+        text  = hs.styledtext.new("+", {
+          font           = { name = obj.labelFont, size = obj.iconSize + 4 },
+          color          = obj.placeholderColor,
+          paragraphStyle = { alignment = "center" },
+        }),
+        frame = { x = ix - iconBgR, y = iy - (obj.iconSize + 4) / 2 - 4,
+                  w = iconBgR * 2,  h = obj.iconSize + 12 },
+      })
+    end
+
+    -- Active ring (hidden until this wedge becomes active). Drawn as a
+    -- stroked oval just outside the icon disc.
+    local ringR = iconBgR + 5
+    c:appendElements({
+      type        = "oval",
+      action      = (i == _activeWedge) and "stroke" or "skip",
+      strokeColor = obj.activeRingColor,
+      strokeWidth = 3,
+      frame       = { x = ix - ringR, y = iy - ringR,
+                      w = ringR * 2,  h = ringR * 2 },
+    })
+    _flowerRingIdxs[i] = c:elementCount()
+  end
+
+  -- Center hub: outer grey ring + inner light disc + key hint
+  c:appendElements({
+    type      = "oval",
+    action    = "fill",
+    fillColor = obj.centerHubColor,
+    frame     = { x = lx - DZ, y = ly - DZ, w = DZ * 2, h = DZ * 2 },
+  })
+  local innerDZ = DZ - 6
+  c:appendElements({
+    type      = "oval",
+    action    = "fill",
+    fillColor = obj.centerHubInnerColor,
+    frame     = { x = lx - innerDZ, y = ly - innerDZ,
+                  w = innerDZ * 2,  h = innerDZ * 2 },
+  })
+  local hubText = (#_navStack > 0) and "←" or (obj.centerHubText or "")
+  c:appendElements({
+    type  = "text",
+    text  = hs.styledtext.new(hubText, {
+      font           = { name = obj.labelFont, size = 22 },
+      color          = obj.centerHubTextColor,
+      paragraphStyle = { alignment = "center" },
+    }),
+    frame = { x = lx - innerDZ, y = ly - 14, w = innerDZ * 2, h = 28 },
+  })
+
+  -- Floating label pill above the menu — text shown only when a wedge is
+  -- active. We always create the elements so we can update them in place
+  -- when the active wedge changes.
+  local pillW = 200
+  local pillX = lx - pillW / 2
+  local pillY = ly - R - amp - 4 - pillH
+  c:appendElements({
+    type        = "rectangle",
+    action      = (_activeWedge ~= nil) and "fill" or "skip",
+    fillColor   = obj.labelPillColor,
+    roundedRectRadii = { xRadius = pillH / 2, yRadius = pillH / 2 },
+    frame       = { x = pillX, y = pillY, w = pillW, h = pillH },
+  })
+  _flowerPillBgIdx = c:elementCount()
+  local pillText = ""
+  if _activeWedge and items[_activeWedge] then pillText = items[_activeWedge].label or "" end
+  c:appendElements({
+    type  = "text",
+    text  = hs.styledtext.new(pillText, {
+      font           = { name = obj.labelFont, size = 14 },
+      color          = obj.labelPillTextColor,
+      paragraphStyle = { alignment = "center", lineBreak = "truncateTail" },
+    }),
+    frame = { x = pillX, y = pillY + 5, w = pillW, h = pillH - 6 },
+  })
+  _flowerPillTxtIdx = c:elementCount()
+
+  -- Rubber-band cursor (drawn last so it sits on top)
+  local cr = obj.cursorRadius
+  c:appendElements({
+    type      = "oval",
+    action    = "fill",
+    fillColor = obj.cursorColor,
+    frame     = { x = lx + _cursorDx - cr, y = ly + _cursorDy - cr,
+                  w = cr * 2, h = cr * 2 },
+  })
+  _cursorIdx = c:elementCount()
+
+  _canvas = c
+  _canvas:show()
 end
 
 local function refreshCanvas()
@@ -286,6 +645,14 @@ local function refreshCanvas()
   _wedgeIdxs = {}
   _backIdx   = nil
   _cursorIdx = nil
+  _flowerRingIdxs   = {}
+  _flowerPillBgIdx  = nil
+  _flowerPillTxtIdx = nil
+
+  if obj.style == "flower" then
+    renderFlower(items, n)
+    return
+  end
 
   local R    = obj.radius
   local DZ   = obj.deadZoneRadius
@@ -490,6 +857,31 @@ end
 local function updateActiveWedgeFills(newActive, oldActive)
   if not _canvas then return end
   local items = _currentItems
+
+  -- Flower style: toggle the per-wedge active ring and update the floating
+  -- label pill (show/hide bg + replace text styledtext).
+  if obj.style == "flower" then
+    if oldActive and _flowerRingIdxs[oldActive] then
+      _canvas[_flowerRingIdxs[oldActive]].action = "skip"
+    end
+    if newActive and _flowerRingIdxs[newActive] then
+      _canvas[_flowerRingIdxs[newActive]].action = "stroke"
+    end
+    if _flowerPillBgIdx then
+      _canvas[_flowerPillBgIdx].action = (newActive ~= nil) and "fill" or "skip"
+    end
+    if _flowerPillTxtIdx then
+      local label = ""
+      if newActive and items[newActive] then label = items[newActive].label or "" end
+      _canvas[_flowerPillTxtIdx].text = hs.styledtext.new(label, {
+        font           = { name = obj.labelFont, size = 14 },
+        color          = obj.labelPillTextColor,
+        paragraphStyle = { alignment = "center", lineBreak = "truncateTail" },
+      })
+    end
+    return
+  end
+
   if oldActive and _wedgeIdxs[oldActive] then
     local item = items[oldActive]
     local fill = (item and item.children) and obj.subMenuWedgeColor or obj.wedgeColor
@@ -503,6 +895,7 @@ end
 -- Update the back-hitbox fill: lit when no wedge is active AND we're in
 -- a sub-menu. Light = "release here to go back."
 local function updateBackHitbox()
+  if obj.style == "flower" then return end
   if not _canvas or not _backIdx then return end
   if _activeWedge == nil and #_navStack > 0 then
     _canvas[_backIdx].fillColor = obj.activeWedgeColor
