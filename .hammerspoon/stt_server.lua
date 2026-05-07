@@ -220,9 +220,17 @@ function M.transcribe(audioBytes, cb)
 
   local doneFn = function(exitCode, _, stdErr)
     os.remove(tmpPath)
+    -- With --fail-with-body, curl exits 22 on any HTTP >= 400 (and other
+    -- non-zero codes for connection failures / timeouts). On a healthy
+    -- 200 response, exit is 0 — we trust the SSE parser's `done` event
+    -- to fire `cb.on_done`. Don't try to second-guess that here: hs.task
+    -- can deliver the final stdout chunk AFTER this completion callback,
+    -- which would falsely look like "no done event was seen yet."
     if exitCode ~= 0 then
       log("curl exited %d: %s", exitCode, (stdErr or ""):sub(1, 200))
-      if cb.on_error then cb.on_error(string.format("curl exit %d", exitCode)) end
+      if cb.on_error then
+        cb.on_error(string.format("transcribe failed (curl exit %d)", exitCode))
+      end
     end
   end
   local streamFn = function(_, stdOut, _)
@@ -234,6 +242,7 @@ function M.transcribe(audioBytes, cb)
 
   local task = hs.task.new("/usr/bin/curl", doneFn, streamFn, {
     "-sN",                          -- silent, no buffering
+    "--fail-with-body",             -- non-zero exit on HTTP >= 400
     "-X", "POST",
     "-H", "Content-Type: application/octet-stream",
     "-H", "Accept: text/event-stream",

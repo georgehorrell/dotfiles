@@ -7,7 +7,7 @@
 
 local M = {}
 
-local audio   = require("audio")
+local dictate = require("dictate")
 local server  = require("stt_server")
 local overlay = require("dictation_overlay")
 
@@ -36,6 +36,9 @@ local activePrompt     = nil
 local prewarmedPrompts = {}  -- set of prompt strings we've already prewarmed
 local startT0          = nil -- secondsSinceEpoch at M.start entry; used to
                              -- log per-stage latency until first PCM byte
+local liveHandle       = nil -- dictate.start handle; set in M.start
+local liveAssembled    = ""  -- text accumulated from `final` events
+local livePartial      = ""  -- current in-flight `partial` for the segment
 
 local function log(...)
   if M.debug then hs.printf("[dictation] " .. string.format(...)) end
@@ -136,6 +139,20 @@ end
 
 -- ── public API ──────────────────────────────────────────────────────────
 
+-- Reconstruct the displayed transcript from accumulated `final`s plus
+-- the current segment's `partial`. The server uses a single space as
+-- segment separator; mirror that on the client so the overlay text
+-- doesn't fight the actual paste content.
+local function renderHeard()
+  if liveAssembled == "" then
+    overlay.heard(livePartial)
+  elseif livePartial == "" then
+    overlay.heard(liveAssembled)
+  else
+    overlay.heard(liveAssembled .. " " .. livePartial)
+  end
+end
+
 function M.start(prompt)
   if active then
     log("start ignored — already active")
@@ -145,6 +162,8 @@ function M.start(prompt)
   active = true
   activePrompt = prompt
   startT0 = hs.timer.secondsSinceEpoch()
+  liveAssembled = ""
+  livePartial = ""
   logStage("M.start entered")
 
   -- Show the overlay synchronously, then yield to the event loop so the
@@ -158,19 +177,121 @@ function M.start(prompt)
 
     if prompt then M.prewarmOllama(prompt) end
 
-    -- audio.start opens a streaming HTTP connection to the server's
-    -- /record endpoint. The server has AUHAL pre-initialized, so the
-    -- first sample arrives within ~80ms.
-    local ok = audio.start()
-    logStage("audio.start() returned")
-    if not ok then
-      log("audio.start failed — is stt-server running?")
-      hs.alert.show("Failed to start microphone (is stt-server up?)", 3)
-      active = false
-      activePrompt = nil
-      startT0 = nil
-      overlay.cancel()
-    end
+    -- Be defensive: server may have died since we last touched it.
+    server.ensureRunning(function(ok, err)
+      if not ok then
+        log("server unavailable: %s", tostring(err))
+        if active then
+          active = false
+          activePrompt = nil
+          startT0 = nil
+          hs.alert.show("STT server unavailable: " .. tostring(err), 3)
+          overlay.cancel()
+        end
+        return
+      end
+
+      if not active then return end  -- user stopped during ensureRunning
+
+      liveHandle = dictate.start({
+        on_ready = function(_id)
+          logStage("ws ready")
+          -- The server starts capturing the moment AUHAL starts; the
+          -- first PCM byte arrives within ~100ms after `ready`. Flip
+          -- the overlay to listening immediately for snappy UX.
+          if not active then return end
+          startT0 = nil
+          overlay.listening()
+        end,
+        on_speech_start = function(_)
+          -- (no-op — we already show the recording dot when listening)
+        end,
+        on_speech_end = function(_, _segId)
+          -- Current partial is about to be replaced by a final.
+          -- Clear it so we don't briefly double-show.
+          livePartial = ""
+          renderHeard()
+        end,
+        on_partial = function(_segId, text)
+          -- Server sends the cumulative partial text for the segment;
+          -- replace, don't append.
+          livePartial = text or ""
+          renderHeard()
+        end,
+        on_final = function(_segId, text)
+          -- Concatenate finals with single-space separators (matching
+          -- server-side assembly).
+          if text and #text > 0 then
+            if liveAssembled == "" then
+              liveAssembled = text
+            else
+              liveAssembled = liveAssembled .. " " .. text
+            end
+          end
+          livePartial = ""
+          renderHeard()
+        end,
+        on_complete = function(fullText)
+          log("transcript complete: %d chars", #(fullText or ""))
+          -- Server emitted the full assembled text. Trust it over our
+          -- client-side concatenation in case the server's punctuation
+          -- merging differed.
+          if fullText and #fullText > 0 then
+            liveAssembled = fullText
+            livePartial = ""
+            renderHeard()
+          end
+        end,
+        on_warning = function(reason)
+          log("ws warning: %s", tostring(reason))
+        end,
+        on_error = function(msg)
+          log("ws error: %s", tostring(msg))
+          if active then
+            active = false
+            activePrompt = nil
+            startT0 = nil
+            hs.alert.show("Dictation error: " .. tostring(msg), 3)
+            overlay.cancel()
+          end
+        end,
+        on_close = function(stoppedByUser, fullText)
+          if not active then return end
+          local prompt2 = activePrompt
+          activePrompt = nil
+          active = false
+          startT0 = nil
+          liveHandle = nil
+
+          local finalText = (fullText and #fullText > 0) and fullText
+            or liveAssembled or ""
+          log("dictation closed (user=%s, text=%dch)",
+              tostring(stoppedByUser), #finalText)
+
+          overlay.heard(finalText)
+
+          if prompt2 and #finalText > 0 then
+            streamPostProcess(finalText, prompt2)
+          elseif #finalText > 0 then
+            pasteText(finalText)
+          else
+            overlay.done()
+          end
+        end,
+      })
+
+      if not liveHandle then
+        log("dictate.start failed (no handle)")
+        if active then
+          active = false
+          activePrompt = nil
+          startT0 = nil
+          overlay.cancel()
+        end
+      else
+        logStage("dictate.start returned")
+      end
+    end)
   end)
 end
 
@@ -179,56 +300,9 @@ function M.stop()
     log("stop ignored — not active")
     return
   end
-  log("stopping recording")
+  log("stopping dictation")
   overlay.transcribing()
-
-  local prompt = activePrompt
-  activePrompt = nil
-
-  audio.stop(function(audioBytes)
-    if not audioBytes or #audioBytes == 0 then
-      log("no audio captured; aborting")
-      active = false
-      overlay.cancel()
-      return
-    end
-    log("captured %d audio bytes; sending to /transcribe", #audioBytes)
-
-    -- The recording came from the same server we're about to send it
-    -- to, so it's already up — but be defensive in case it crashed.
-    server.ensureRunning(function(ok, err)
-      if not ok then
-        log("server unavailable: %s", tostring(err))
-        active = false
-        hs.alert.show("STT server unavailable: " .. tostring(err), 3)
-        overlay.cancel()
-        return
-      end
-
-      server.transcribe(audioBytes, {
-        on_started = function(_) end,
-        on_token   = function(delta) overlay.appendHeard(delta) end,
-        on_done    = function(fullText)
-          log("transcription done: %d chars", #fullText)
-          active = false
-          overlay.heard(fullText)
-          if prompt and #fullText > 0 then
-            streamPostProcess(fullText, prompt)
-          elseif #fullText > 0 then
-            pasteText(fullText)
-          else
-            overlay.done()
-          end
-        end,
-        on_error = function(msg)
-          log("transcribe error: %s", tostring(msg))
-          active = false
-          hs.alert.show("Transcription error: " .. tostring(msg), 3)
-          overlay.cancel()
-        end,
-      })
-    end)
-  end)
+  if liveHandle then liveHandle:stop() end
 end
 
 function M.toggle(prompt)
@@ -343,26 +417,6 @@ function M.attachToRadial(radial, opts)
   for _, prompt in ipairs(opts.prewarmPrompts or {}) do
     M.prewarmOllama(prompt)
   end
-end
-
--- ── audio recorder callbacks ────────────────────────────────────────────
--- Wired at the bottom so they capture the locals above as upvalues.
-
-audio.onCaptureStart = function()
-  if not active then return end
-  logStage("first PCM byte (audio.onCaptureStart)")
-  startT0 = nil
-  overlay.listening()
-end
-
-audio.onUnexpectedExit = function(_)
-  if not active then return end
-  log("recorder exited unexpectedly; aborting dictation")
-  hs.alert.show("Microphone unavailable", 2)
-  active = false
-  activePrompt = nil
-  startT0 = nil
-  overlay.cancel()
 end
 
 return M
